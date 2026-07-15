@@ -28,7 +28,7 @@ try {
   console.error('Error loading .env file:', e);
 }
 
-const PORT = process.env.WS_PORT || 3001;
+const PORT = process.env.PORT || process.env.WS_PORT || 3001;
 const JWT_SECRET = process.env.JWT_SECRET || 'super-secret-key-that-is-at-least-32-chars-long-12345';
 const BROADCAST_SECRET = process.env.WS_BROADCAST_SECRET || 'internal-websocket-broadcast-secret-key-999';
 
