@@ -148,7 +148,7 @@ export function useSocket() {
     }
 
     socket.onerror = (err) => {
-      console.error('WebSocket Error:', err)
+      console.warn('WebSocket Connection Error:', err)
       socket.close()
     }
   }, [user, setConnectionStatus, addMessage, addReaction, setTypingUsers, flushOfflineQueue])

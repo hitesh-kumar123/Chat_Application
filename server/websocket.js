@@ -14,7 +14,7 @@ try {
       const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
       if (match) {
         const key = match[1];
-        let value = match[2] || '';
+        let value = (match[2] || '').replace(/\r$/, '').trim();
         if (value.startsWith('"') && value.endsWith('"')) {
           value = value.substring(1, value.length - 1);
         } else if (value.startsWith("'") && value.endsWith("'")) {
