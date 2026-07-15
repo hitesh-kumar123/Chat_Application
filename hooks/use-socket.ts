@@ -103,6 +103,16 @@ export function useSocket() {
               window.location.href = '/chat'
             }
             break
+          case 'ROOM_CREATED': {
+            const currentRooms = useChatStore.getState().rooms
+            if (!currentRooms.some(r => r.id === data.room.id)) {
+              useChatStore.getState().addRoom(data.room)
+              if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+                socketRef.current.send(JSON.stringify({ type: 'JOIN_ROOM', roomId: data.room.id }))
+              }
+            }
+            break
+          }
           case 'ROOM_CLEARED':
             useChatStore.getState().setMessages(roomId, [])
             break
@@ -227,7 +237,7 @@ export function useSocket() {
     }
   }, [connect, setConnectionStatus])
 
-  const sendMessage = useCallback(async (content: string, replyToId?: string) => {
+  const sendMessage = useCallback(async (content: string, replyToId?: string, fileUrl?: string, fileName?: string) => {
     if (!activeRoomId || !user) return
 
     const clientMsgId = Math.random().toString(36).substring(2) + Date.now().toString(36)
@@ -245,6 +255,8 @@ export function useSocket() {
         avatarUrl: user.avatarUrl,
       },
       status: 'PENDING' as const,
+      fileUrl,
+      fileName,
       replyTo: useChatStore.getState().replyTo ? {
         id: useChatStore.getState().replyTo!.id,
         content: useChatStore.getState().replyTo!.content,
@@ -265,6 +277,8 @@ export function useSocket() {
         content,
         clientMsgId,
         replyToId,
+        fileUrl,
+        fileName,
       })
       return
     }
@@ -280,6 +294,8 @@ export function useSocket() {
           content,
           clientMsgId,
           replyToId,
+          fileUrl,
+          fileName,
         }),
       })
 

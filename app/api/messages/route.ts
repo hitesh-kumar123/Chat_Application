@@ -6,9 +6,11 @@ import { z } from 'zod'
 
 const sendMessageSchema = z.object({
   roomId: z.string().min(1, 'Room ID is required'),
-  content: z.string().min(1, 'Message content cannot be empty'),
+  content: z.string().optional().default(''),
   clientMsgId: z.string().min(1, 'Client Message ID is required'),
   replyToId: z.string().optional(),
+  fileUrl: z.string().optional(),
+  fileName: z.string().optional(),
 })
 
 export async function GET(req: NextRequest) {
@@ -105,7 +107,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { roomId, content, clientMsgId, replyToId } = sendMessageSchema.parse(body)
+    const { roomId, content, clientMsgId, replyToId, fileUrl, fileName } = sendMessageSchema.parse(body)
 
     const isMember = await db.room.findFirst({
       where: {
@@ -153,8 +155,10 @@ export async function POST(req: NextRequest) {
         clientMsgId,
         roomId,
         userId: user.id,
-        replyToId,
+        replyToId: replyToId || undefined,
         status: 'SENT',
+        fileUrl: fileUrl || undefined,
+        fileName: fileName || undefined,
       },
       include: {
         user: {
@@ -180,7 +184,7 @@ export async function POST(req: NextRequest) {
     await broadcastEvent(roomId, 'NEW_MESSAGE', message)
 
     return NextResponse.json({ message })
-  } catch (error) {
+  } catch (error: any) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: error.issues[0].message },
@@ -189,7 +193,7 @@ export async function POST(req: NextRequest) {
     }
     console.error('Send message error:', error)
     return NextResponse.json(
-      { error: 'Something went wrong sending the message' },
+      { error: error.message || String(error) },
       { status: 500 }
     )
   }

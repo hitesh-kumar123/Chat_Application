@@ -19,7 +19,15 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  Share2,
+  Hash,
 } from 'lucide-react'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const EMOJI_LIST = ['👍', '❤️', '😂', '🔥', '😮', '🎉', '🚀', '😢']
 
@@ -29,6 +37,7 @@ export default function RoomPage() {
   
   const {
     user,
+    rooms,
     messages,
     typingUsers,
     setMessages,
@@ -47,8 +56,31 @@ export default function RoomPage() {
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(true)
 
+  // File Upload state & refs
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [selectedFile, setSelectedFile] = useState<{ name: string; dataUrl: string } | null>(null)
+  const [sharingMessage, setSharingMessage] = useState<any | null>(null)
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const reader = new FileReader()
+    reader.onloadend = () => {
+      setSelectedFile({
+        name: file.name,
+        dataUrl: reader.result as string,
+      })
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const triggerFileInput = () => {
+    fileInputRef.current?.click()
+  }
+
   const activeMessages = messages[roomId] || []
-  const activeTyping = typingUsers[roomId] || []
+  const activeTyping = (typingUsers[roomId] || []).filter(u => u.userId !== user?.id)
 
   useEffect(() => {
     if (!roomId) return
@@ -94,13 +126,50 @@ export default function RoomPage() {
   }
 
   const handleSend = () => {
-    if (!input.trim()) return
-    sendMessage(input, replyTo?.id)
+    if (!input.trim() && !selectedFile) return
+    sendMessage(input, replyTo?.id, selectedFile?.dataUrl, selectedFile?.name)
     setInput('')
+    setSelectedFile(null)
     setIsTyping(false)
     sendTypingState(false)
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current)
+    }
+  }
+
+  const handleForwardMessage = async (targetRoomId: string) => {
+    if (!sharingMessage) return
+
+    const clientMsgId = Math.random().toString(36).substring(2) + Date.now().toString(36)
+
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          roomId: targetRoomId,
+          content: sharingMessage.content,
+          clientMsgId,
+          fileUrl: sharingMessage.fileUrl,
+          fileName: sharingMessage.fileName,
+        }),
+      })
+
+      if (res.ok) {
+        const data = await res.json()
+        if (targetRoomId === roomId) {
+          addMessage(targetRoomId, { ...data.message, status: 'SENT' })
+        } else {
+          const targetMsgs = messages[targetRoomId]
+          if (targetMsgs) {
+            setMessages(targetRoomId, [...targetMsgs, { ...data.message, status: 'SENT' }])
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to forward message:', err)
+    } finally {
+      setSharingMessage(null)
     }
   }
 
@@ -131,6 +200,42 @@ export default function RoomPage() {
 
   return (
     <div className="h-full flex flex-col justify-between bg-zinc-950/20">
+      <Dialog open={!!sharingMessage} onOpenChange={(open) => !open && setSharingMessage(null)}>
+        <DialogContent className="glass-panel border-white/10 text-white rounded-xl max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Forward Message</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 max-h-64 overflow-y-auto pr-1 mt-3">
+            <p className="text-[11px] text-zinc-500 mb-3">Select a conversation or channel to share this message:</p>
+            {rooms.length === 0 ? (
+              <p className="text-xs text-zinc-500 text-center py-4">No active conversations found</p>
+            ) : (
+              rooms.map(room => (
+                <button
+                  key={room.id}
+                  onClick={() => handleForwardMessage(room.id)}
+                  className="w-full flex items-center justify-between p-2 hover:bg-white/5 rounded-lg text-left transition duration-200 cursor-pointer"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    {room.isGroup ? (
+                      <Hash className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+                    ) : (
+                      <Avatar className="w-5 h-5 flex-shrink-0">
+                        <AvatarImage src={room.users.find(u => u.id !== user?.id)?.avatarUrl || ''} />
+                        <AvatarFallback>DM</AvatarFallback>
+                      </Avatar>
+                    )}
+                    <span className="text-xs font-semibold text-zinc-300 truncate">
+                      {room.isGroup ? room.name : room.users.find(u => u.id !== user?.id)?.name || 'Direct Chat'}
+                    </span>
+                  </div>
+                  <span className="text-[9px] text-indigo-400 font-bold bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded-full">Share</span>
+                </button>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
       <div className="flex-1 overflow-y-auto p-6 space-y-4" ref={scrollAreaRef}>
         {isLoadingHistory ? (
           <div className="h-full flex flex-col items-center justify-center space-y-3">
@@ -204,7 +309,28 @@ export default function RoomPage() {
                             : 'bg-zinc-900 border border-white/5 text-zinc-100 rounded-tl-none'
                         }`}
                       >
-                        <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                        {msg.fileUrl && (
+                          <div className="mb-2 rounded-lg overflow-hidden border border-white/10 max-w-sm">
+                            {msg.fileUrl.startsWith('data:image/') || msg.fileName?.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i) ? (
+                              <img
+                                src={msg.fileUrl}
+                                alt={msg.fileName || 'Attachment'}
+                                className="max-h-60 object-contain w-full bg-zinc-950/20"
+                              />
+                            ) : (
+                              <a
+                                href={msg.fileUrl}
+                                download={msg.fileName || 'file'}
+                                className="flex items-center gap-2.5 p-3 bg-zinc-950/40 hover:bg-zinc-950/60 transition-all text-xs font-medium text-indigo-300 hover:text-indigo-200"
+                              >
+                                <Paperclip className="w-4 h-4 text-zinc-400" />
+                                <span className="truncate flex-1 text-left text-zinc-300">{msg.fileName || 'Download Attachment'}</span>
+                                <span className="text-[10px] text-zinc-500 underline ml-2">Download</span>
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        {msg.content && <p className="leading-relaxed whitespace-pre-wrap">{msg.content}</p>}
                         
                         {isMe && (
                           <div className="flex justify-end mt-1 text-white/50 text-[10px] gap-0.5">
@@ -253,8 +379,19 @@ export default function RoomPage() {
                           size="icon"
                           onClick={() => setReplyTo(msg)}
                           className="h-7 w-7 rounded-full text-zinc-400 hover:text-white hover:bg-white/5 cursor-pointer"
+                          title="Reply"
                         >
                           <CornerUpLeft className="w-4 h-4" />
+                        </Button>
+
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setSharingMessage(msg)}
+                          className="h-7 w-7 rounded-full text-zinc-400 hover:text-white hover:bg-white/5 cursor-pointer"
+                          title="Forward Message"
+                        >
+                          <Share2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </div>
@@ -329,10 +466,47 @@ export default function RoomPage() {
               </Button>
             </motion.div>
           )}
+
+          {selectedFile && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="flex items-center gap-3 p-2 mb-3 bg-zinc-900 border border-white/5 rounded-lg text-xs animate-in fade-in zoom-in duration-200"
+            >
+              {selectedFile.dataUrl.startsWith('data:image/') ? (
+                <div className="relative w-10 h-10 rounded overflow-hidden border border-white/10 flex-shrink-0">
+                  <img src={selectedFile.dataUrl} className="object-cover w-full h-full" alt="upload" />
+                </div>
+              ) : (
+                <div className="flex items-center justify-center w-10 h-10 rounded bg-zinc-950/40 text-indigo-400 flex-shrink-0">
+                  <Paperclip className="w-4 h-4" />
+                </div>
+              )}
+              <div className="flex flex-col flex-1 min-w-0">
+                <span className="font-semibold text-zinc-300 truncate text-left">{selectedFile.name}</span>
+                <span className="text-[10px] text-zinc-500 text-left">Ready to send</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setSelectedFile(null)}
+                className="h-6 w-6 rounded-full text-zinc-400 hover:text-white cursor-pointer flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </motion.div>
+          )}
         </AnimatePresence>
 
         <div className="flex gap-3 items-end">
           <div className="flex-1 relative flex items-end">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              className="hidden"
+            />
             <Textarea
               value={input}
               onChange={handleInputChange}
@@ -345,6 +519,7 @@ export default function RoomPage() {
               <Button
                 variant="ghost"
                 size="icon"
+                onClick={triggerFileInput}
                 className="h-7 w-7 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 cursor-pointer"
               >
                 <Paperclip className="w-4 h-4" />
@@ -362,7 +537,7 @@ export default function RoomPage() {
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <Button
               onClick={handleSend}
-              disabled={!input.trim()}
+              disabled={!input.trim() && !selectedFile}
               className="h-11 w-11 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-500 hover:from-indigo-600 text-white flex items-center justify-center cursor-pointer shadow-lg shadow-indigo-500/15"
             >
               <Send className="w-4 h-4" />

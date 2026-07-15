@@ -89,7 +89,24 @@ const server = http.createServer((req, res) => {
         }
 
         const payload = JSON.parse(body);
-        const { roomId, type, data } = payload;
+        const { roomId, userIds, type, data } = payload;
+
+        if (userIds && Array.isArray(userIds)) {
+          const messageStr = JSON.stringify({ type, data });
+          userIds.forEach(uId => {
+            const sockets = userSockets.get(uId);
+            if (sockets) {
+              sockets.forEach(ws => {
+                if (ws.readyState === 1) {
+                  ws.send(messageStr);
+                }
+              });
+            }
+          });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ success: true }));
+          return;
+        }
 
         if (!roomId || !type) {
           res.writeHead(400, { 'Content-Type': 'application/json' });

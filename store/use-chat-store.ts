@@ -36,6 +36,8 @@ export interface Message {
   }
   status: 'PENDING' | 'SENT' | 'DELIVERED' | 'READ' | 'ERROR'
   reactions?: Reaction[]
+  fileUrl?: string
+  fileName?: string
 }
 
 export interface Room {
@@ -59,7 +61,7 @@ interface ChatState {
   messages: Record<string, Message[]> // roomId -> messages
   typingUsers: Record<string, TypingUser[]> // roomId -> typing users
   connectionStatus: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING'
-  offlineQueue: { roomId: string; content: string; clientMsgId: string; replyToId?: string }[]
+  offlineQueue: { roomId: string; content: string; clientMsgId: string; replyToId?: string; fileUrl?: string; fileName?: string }[]
   replyTo: Message | null
 
   setUser: (user: User | null) => void
@@ -72,7 +74,7 @@ interface ChatState {
   addReaction: (roomId: string, messageId: string, reactions: Reaction[]) => void
   setTypingUsers: (roomId: string, users: TypingUser[]) => void
   setConnectionStatus: (status: 'CONNECTED' | 'DISCONNECTED' | 'CONNECTING') => void
-  addToOfflineQueue: (item: { roomId: string; content: string; clientMsgId: string; replyToId?: string }) => void
+  addToOfflineQueue: (item: { roomId: string; content: string; clientMsgId: string; replyToId?: string; fileUrl?: string; fileName?: string }) => void
   clearOfflineQueue: () => void
   setReplyTo: (message: Message | null) => void
 }

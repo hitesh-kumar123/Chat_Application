@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyJWT } from '@/lib/auth'
 import { z } from 'zod'
-import { broadcastEvent } from '@/lib/broadcast'
+import { broadcastEvent, broadcastToUsers } from '@/lib/broadcast'
 
 const createRoomSchema = z.object({
   name: z.string().min(1, 'Room name is required').optional(),
@@ -123,6 +123,9 @@ export async function POST(req: NextRequest) {
         },
       },
     })
+
+    // Broadcast new room creation to all members so their sidebars update in real-time
+    await broadcastToUsers(allUserIds, 'ROOM_CREATED', { room })
 
     return NextResponse.json({ room, exists: false })
   } catch (error) {

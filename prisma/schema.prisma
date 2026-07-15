@@ -46,4 +46,6 @@ model Message {
   replyTo      Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: NoAction, onUpdate: NoAction)
   replies      Message[]     @relation("MessageReplies")
   status       String        @default("SENT") // SENT, DELIVERED, READ
+  fileUrl      String?
+  fileName     String?
 }
