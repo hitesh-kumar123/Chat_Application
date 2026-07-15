@@ -53,8 +53,20 @@ export function useSocket() {
 
     setConnectionStatus('CONNECTING')
     
+    const token = typeof document !== 'undefined'
+      ? document.cookie
+          .split('; ')
+          .find(row => row.startsWith('chat-session='))
+          ?.split('=')[1]
+      : null
+
+    if (!token) {
+      console.warn('No session token found, skipping socket connection')
+      return
+    }
+
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3001'
-    const socket = new WebSocket(wsUrl)
+    const socket = new WebSocket(`${wsUrl}?token=${token}`)
     socketRef.current = socket
 
     socket.onopen = () => {

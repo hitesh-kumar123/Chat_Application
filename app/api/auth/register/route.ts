@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     })
 
     response.cookies.set('chat-session', token, {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 1 week

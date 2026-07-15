@@ -91,7 +91,7 @@ export async function PUT(req: NextRequest) {
 
     const response = NextResponse.json({ success: true, user: updatedUser })
     response.cookies.set('chat-session', newToken, {
-      httpOnly: true,
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
